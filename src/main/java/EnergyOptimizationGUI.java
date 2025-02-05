@@ -1,5 +1,6 @@
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -42,26 +43,28 @@ public class EnergyOptimizationGUI {
         buttonPanel.setLayout(new FlowLayout(FlowLayout.CENTER));
         buttonPanel.setBackground(new Color(30, 30, 30));
 
-        JButton sendButton = new JButton("New");
+        JButton sendButton = new JButton("Recommendation");
         sendButton.setFont(new Font("Arial", Font.BOLD, 14));
         sendButton.setBackground(new Color(0, 123, 255));
         sendButton.setForeground(Color.WHITE);
         sendButton.setFocusPainted(false);
         sendButton.setBorder(BorderFactory.createLineBorder(new Color(0, 174, 255), 2));
-        sendButton.setPreferredSize(new Dimension(80, 30));
+        sendButton.setPreferredSize(new Dimension(150, 30));
         sendButton.addActionListener(this::sendRequest);
 
         buttonPanel.add(sendButton);
         frame.add(buttonPanel, BorderLayout.CENTER);
 
-        resultArea = new JTextArea(5, 30);
-        resultArea.setFont(new Font("Arial", Font.PLAIN, 14));
+        resultArea = new JTextArea(6, 50);  // Restrict rows to avoid excessive expansion
+        resultArea.setFont(new Font("Arial", Font.PLAIN, 16)); // Bigger font
         resultArea.setLineWrap(true);
         resultArea.setWrapStyleWord(true);
         resultArea.setEditable(false);
         resultArea.setBackground(new Color(40, 40, 40));
         resultArea.setForeground(Color.WHITE);
+
         JScrollPane scrollPane = new JScrollPane(resultArea);
+        scrollPane.setPreferredSize(new Dimension(580, 150));  // Set fixed size
         frame.add(scrollPane, BorderLayout.SOUTH);
 
         frame.pack();
@@ -83,7 +86,7 @@ public class EnergyOptimizationGUI {
         ));
         textField.setBackground(new Color(40, 40, 40));
         textField.setForeground(Color.WHITE);
-        textField.setCaretColor(Color.WHITE); // Set caret color to white
+        textField.setCaretColor(Color.WHITE);
 
         panel.add(jLabel);
         panel.add(textField);
@@ -91,6 +94,19 @@ public class EnergyOptimizationGUI {
     }
 
     private void sendRequest(ActionEvent e) {
+        resultArea.setText("Processing...");  // Show processing message
+
+        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Void doInBackground() {
+                fetchRecommendation();
+                return null;
+            }
+        };
+        worker.execute();
+    }
+
+    private void fetchRecommendation() {
         try {
             int temperature = Integer.parseInt(tempField.getText());
             int occupancy = Integer.parseInt(occupancyField.getText());
@@ -117,25 +133,25 @@ public class EnergyOptimizationGUI {
             }
 
             if (conn.getResponseCode() == 200) {
-                BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"));
-                ObjectMapper objectMapper = new ObjectMapper();
-                StringBuilder response = new StringBuilder();
-                String line;
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"))) {
+                    ObjectMapper objectMapper = new ObjectMapper();
+                    StringBuilder response = new StringBuilder();
+                    String line;
 
-                while ((line = br.readLine()) != null) {
-                    if (!line.trim().isEmpty()) {
-                        try {
-                            JsonNode jsonNode = objectMapper.readTree(line);
-                            if (jsonNode.has("message") && jsonNode.get("message").has("content")) {
-                                response.append(jsonNode.get("message").get("content").asText()).append(" ");
+                    while ((line = br.readLine()) != null) {
+                        if (!line.trim().isEmpty()) {
+                            try {
+                                JsonNode jsonNode = objectMapper.readTree(line);
+                                if (jsonNode.has("message") && jsonNode.get("message").has("content")) {
+                                    response.append(jsonNode.get("message").get("content").asText()).append(" ");
+                                }
+                            } catch (Exception ex) {
+                                response.append(" Failed to parse response: ").append(line);
                             }
-                        } catch (Exception ex) {
-                            response.append(" Failed to parse response: ").append(line);
                         }
                     }
+                    resultArea.setText("Recommended Setting: " + response.toString().trim());
                 }
-                br.close();
-                resultArea.setText("Recommended Setting: " + response.toString().trim());
             } else {
                 resultArea.setText("Error: " + conn.getResponseCode());
             }
