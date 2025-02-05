@@ -98,21 +98,15 @@ class EnergyOptimizationGUI {
         frame.setLayout(new BorderLayout());
         frame.getContentPane().setBackground(new Color(30, 30, 30));
 
-        // به‌روز شده: استفاده از GridLayout با 6 ردیف (برای دما، تعداد افراد، مصرف برق، مساحت اتاق، ساعت اوج و انتخاب RAG)
         JPanel inputPanel = new JPanel(new GridLayout(6, 2, 10, 10));
         inputPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         inputPanel.setBackground(new Color(50, 50, 50));
 
-        // ورودی دما
         tempField = createStyledTextField(inputPanel, "Temperature:");
-        // ورودی تعداد اشخاص
         occupancyField = createStyledTextField(inputPanel, "Occupancy:");
-        // ورودی مصرف برق
         powerField = createStyledTextField(inputPanel, "Power Usage (W):");
-        // ورودی مساحت اتاق
         roomAreaField = createStyledTextField(inputPanel, "Room Area (m²):");
 
-        // چک باکس مربوط به ساعات اوج مصرف
         peakHoursCheck = new JCheckBox("Peak Hours");
         peakHoursCheck.setFont(new Font("Arial", Font.BOLD, 14));
         peakHoursCheck.setForeground(Color.WHITE);
@@ -120,7 +114,6 @@ class EnergyOptimizationGUI {
         inputPanel.add(new JLabel("")); // برچسب خالی برای ایجاد فاصله
         inputPanel.add(peakHoursCheck);
 
-        // جدید: کامبو باکس انتخاب داده‌های اضافی (RAG)
         JLabel ragLabel = new JLabel("Additional Data:");
         ragLabel.setForeground(Color.WHITE);
         String[] ragOptions = {"None", "Energy Usage Trends", "Weather Forecasts"};
@@ -178,11 +171,9 @@ class EnergyOptimizationGUI {
             boolean isPeakHours = peakHoursCheck.isSelected();
             String peakHoursStatus = isPeakHours ? "Yes" : "No";
 
-            // دریافت سطح دسترسی کاربر از کلاس ورود
             String accessLevel = EnergyOptimizationLogin.getCurrentAccessLevel();
             String recommendationStyle = "";
 
-            // تعیین سبک توصیه بر اساس سطح دسترسی کاربر
             if ("poor".equalsIgnoreCase(accessLevel)) {
                 recommendationStyle = "cheap and efficient";
             } else if ("average".equalsIgnoreCase(accessLevel)) {
@@ -193,20 +184,17 @@ class EnergyOptimizationGUI {
                 recommendationStyle = "standard recommendation";
             }
 
-            // دریافت اطلاعات اضافی با استفاده از RAG در صورت انتخاب شدن
             String ragSelection = (String) ragComboBox.getSelectedItem();
             String additionalData = "";
             if (!"None".equalsIgnoreCase(ragSelection)) {
                 additionalData = fetchRAGData(ragSelection);
             }
 
-            // ساخت prompt شامل مقادیر ورودی، سبک توصیه، مساحت اتاق و اطلاعات اضافی
             String prompt = String.format(
                     "User with access level '%s' requires recommendations that are %s. Conditions: Temperature: %d, Occupancy: %d, Power Usage: %dW, Room Area: %.2f m², Peak Hours: %s. %s Please suggest the best HVAC mode and temperature.",
                     accessLevel, recommendationStyle, temperature, occupancy, powerUsage, roomArea, peakHoursStatus, additionalData
             );
 
-            // تنظیم درخواست HTTP به API چت
             String urlString = "http://localhost:11434/api/chat";
             URL url = new URL(urlString);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -252,10 +240,7 @@ class EnergyOptimizationGUI {
         }
     }
 
-    /**
-     * این متد از RAG برای دریافت اطلاعات اضافی از یک نقطه انتهایی معین استفاده می‌کند.
-     * نقطه انتهایی URL بر اساس انتخاب کاربر تعیین می‌شود.
-     */
+
     private String fetchRAGData(String selection) {
         String endpoint = "";
         if ("Energy Usage Trends".equalsIgnoreCase(selection)) {
