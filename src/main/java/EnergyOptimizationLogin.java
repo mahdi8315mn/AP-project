@@ -3,7 +3,6 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javax.swing.*;
@@ -19,10 +18,10 @@ public class EnergyOptimizationLogin {
     private static final String EXCEL_FILE = "users.xlsx";
     private static Map<String, String> userAccessLevels = new HashMap<>();
     private static String currentAccessLevel;
+
     public static String getCurrentAccessLevel() {
         return currentAccessLevel;
     }
-
 
     public static void main(String[] args) {
         loadUserData();
@@ -49,20 +48,20 @@ public class EnergyOptimizationLogin {
         JFrame frame = new JFrame("Login");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new GridLayout(4, 2, 10, 10));
-        frame.getContentPane().setBackground(new Color(0, 0, 0));
+        frame.getContentPane().setBackground(Color.BLACK);
 
         JLabel userLabel = new JLabel("Username:");
         userLabel.setForeground(Color.WHITE);
         JTextField userField = new JTextField();
 
-        JLabel passLabel = new JLabel("Access Level (rich, average, poor):");
-        passLabel.setForeground(Color.WHITE);
-        JTextField passField = new JTextField();
+        JLabel accessLabel = new JLabel("Access Level (rich, average, poor):");
+        accessLabel.setForeground(Color.WHITE);
+        JTextField accessField = new JTextField();
 
         JButton loginButton = new JButton("Login");
         loginButton.addActionListener(e -> {
             String username = userField.getText().trim();
-            String accessLevel = passField.getText().trim().toLowerCase();
+            String accessLevel = accessField.getText().trim().toLowerCase();
 
             if (userAccessLevels.containsKey(username) && userAccessLevels.get(username).equals(accessLevel)) {
                 currentAccessLevel = accessLevel;
@@ -75,8 +74,8 @@ public class EnergyOptimizationLogin {
 
         frame.add(userLabel);
         frame.add(userField);
-        frame.add(passLabel);
-        frame.add(passField);
+        frame.add(accessLabel);
+        frame.add(accessField);
         frame.add(new JLabel());
         frame.add(loginButton);
 
@@ -110,12 +109,12 @@ class EnergyOptimizationGUI {
         peakHoursCheck.setFont(new Font("Arial", Font.BOLD, 14));
         peakHoursCheck.setForeground(Color.WHITE);
         peakHoursCheck.setBackground(new Color(50, 50, 50));
-        inputPanel.add(new JLabel(""));
+        inputPanel.add(new JLabel("")); // Empty label for spacing
         inputPanel.add(peakHoursCheck);
 
         frame.add(inputPanel, BorderLayout.NORTH);
 
-        JButton sendButton = new JButton("Recommendation");
+        JButton sendButton = new JButton("Get Recommendation");
         sendButton.addActionListener(this::sendRequest);
         frame.add(sendButton, BorderLayout.CENTER);
 
@@ -162,9 +161,28 @@ class EnergyOptimizationGUI {
             boolean isPeakHours = peakHoursCheck.isSelected();
             String peakHoursStatus = isPeakHours ? "Yes" : "No";
 
-            String prompt = String.format("Temp: %d, Occupancy: %d, Power: %dW, Peak: %s. Best HVAC mode & temp?",
-                    temperature, occupancy, powerUsage, peakHoursStatus);
+            // Retrieve the user's access level from the login class
+            String accessLevel = EnergyOptimizationLogin.getCurrentAccessLevel();
+            String recommendationStyle = "";
 
+            // Determine the recommendation style based on the user's access level
+            if ("poor".equalsIgnoreCase(accessLevel)) {
+                recommendationStyle = "cheap and efficient";
+            } else if ("average".equalsIgnoreCase(accessLevel)) {
+                recommendationStyle = "balanced between cost and performance";
+            } else if ("rich".equalsIgnoreCase(accessLevel)) {
+                recommendationStyle = "best performance regardless of cost";
+            } else {
+                recommendationStyle = "standard recommendation";
+            }
+
+            // Construct the prompt with the input values and recommendation style
+            String prompt = String.format(
+                    "User with access level '%s' requires recommendations that are %s. Conditions: Temperature: %d, Occupancy: %d, Power Usage: %dW, Peak Hours: %s. Please suggest the best HVAC mode and temperature.",
+                    accessLevel, recommendationStyle, temperature, occupancy, powerUsage, peakHoursStatus
+            );
+
+            // Setup HTTP request
             String urlString = "http://localhost:11434/api/chat";
             URL url = new URL(urlString);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -172,8 +190,10 @@ class EnergyOptimizationGUI {
             conn.setRequestProperty("Content-Type", "application/json");
             conn.setDoOutput(true);
 
-            String payload = String.format("{\"model\": \"mistral\", \"messages\": [{\"role\": \"user\", \"content\": \"%s\"}]}",
-                    prompt);
+            String payload = String.format(
+                    "{\"model\": \"mistral\", \"messages\": [{\"role\": \"user\", \"content\": \"%s\"}]}",
+                    prompt
+            );
 
             try (OutputStream os = conn.getOutputStream()) {
                 byte[] input = payload.getBytes("utf-8");
@@ -207,4 +227,5 @@ class EnergyOptimizationGUI {
         } catch (Exception ex) {
             resultArea.setText("Error: " + ex.getMessage());
         }
-    }}
+    }
+}
