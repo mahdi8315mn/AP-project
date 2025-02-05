@@ -87,8 +87,9 @@ public class EnergyOptimizationLogin {
 
 class EnergyOptimizationGUI {
     private JFrame frame;
-    private JTextField tempField, occupancyField, powerField;
+    private JTextField tempField, occupancyField, powerField, roomAreaField;
     private JCheckBox peakHoursCheck;
+    private JComboBox<String> ragComboBox; // کامبو باکس برای انتخاب داده‌های اضافی (RAG)
     private JTextArea resultArea;
 
     public EnergyOptimizationGUI() {
@@ -97,20 +98,35 @@ class EnergyOptimizationGUI {
         frame.setLayout(new BorderLayout());
         frame.getContentPane().setBackground(new Color(30, 30, 30));
 
-        JPanel inputPanel = new JPanel(new GridLayout(4, 2, 10, 10));
+        // به‌روز شده: استفاده از GridLayout با 6 ردیف (برای دما، تعداد افراد، مصرف برق، مساحت اتاق، ساعت اوج و انتخاب RAG)
+        JPanel inputPanel = new JPanel(new GridLayout(6, 2, 10, 10));
         inputPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         inputPanel.setBackground(new Color(50, 50, 50));
 
+        // ورودی دما
         tempField = createStyledTextField(inputPanel, "Temperature:");
+        // ورودی تعداد اشخاص
         occupancyField = createStyledTextField(inputPanel, "Occupancy:");
+        // ورودی مصرف برق
         powerField = createStyledTextField(inputPanel, "Power Usage (W):");
+        // ورودی مساحت اتاق
+        roomAreaField = createStyledTextField(inputPanel, "Room Area (m²):");
 
+        // چک باکس مربوط به ساعات اوج مصرف
         peakHoursCheck = new JCheckBox("Peak Hours");
         peakHoursCheck.setFont(new Font("Arial", Font.BOLD, 14));
         peakHoursCheck.setForeground(Color.WHITE);
         peakHoursCheck.setBackground(new Color(50, 50, 50));
-        inputPanel.add(new JLabel("")); // Empty label for spacing
+        inputPanel.add(new JLabel("")); // برچسب خالی برای ایجاد فاصله
         inputPanel.add(peakHoursCheck);
+
+        // جدید: کامبو باکس انتخاب داده‌های اضافی (RAG)
+        JLabel ragLabel = new JLabel("Additional Data:");
+        ragLabel.setForeground(Color.WHITE);
+        String[] ragOptions = {"None", "Energy Usage Trends", "Weather Forecasts"};
+        ragComboBox = new JComboBox<>(ragOptions);
+        inputPanel.add(ragLabel);
+        inputPanel.add(ragComboBox);
 
         frame.add(inputPanel, BorderLayout.NORTH);
 
@@ -127,7 +143,7 @@ class EnergyOptimizationGUI {
         resultArea.setForeground(Color.WHITE);
         frame.add(new JScrollPane(resultArea), BorderLayout.SOUTH);
 
-        frame.setSize(700, 400);
+        frame.setSize(700, 500);
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
     }
@@ -158,14 +174,15 @@ class EnergyOptimizationGUI {
             int temperature = Integer.parseInt(tempField.getText());
             int occupancy = Integer.parseInt(occupancyField.getText());
             int powerUsage = Integer.parseInt(powerField.getText());
+            double roomArea = Double.parseDouble(roomAreaField.getText());
             boolean isPeakHours = peakHoursCheck.isSelected();
             String peakHoursStatus = isPeakHours ? "Yes" : "No";
 
-            // Retrieve the user's access level from the login class
+            // دریافت سطح دسترسی کاربر از کلاس ورود
             String accessLevel = EnergyOptimizationLogin.getCurrentAccessLevel();
             String recommendationStyle = "";
 
-            // Determine the recommendation style based on the user's access level
+            // تعیین سبک توصیه بر اساس سطح دسترسی کاربر
             if ("poor".equalsIgnoreCase(accessLevel)) {
                 recommendationStyle = "cheap and efficient";
             } else if ("average".equalsIgnoreCase(accessLevel)) {
@@ -176,13 +193,20 @@ class EnergyOptimizationGUI {
                 recommendationStyle = "standard recommendation";
             }
 
-            // Construct the prompt with the input values and recommendation style
+            // دریافت اطلاعات اضافی با استفاده از RAG در صورت انتخاب شدن
+            String ragSelection = (String) ragComboBox.getSelectedItem();
+            String additionalData = "";
+            if (!"None".equalsIgnoreCase(ragSelection)) {
+                additionalData = fetchRAGData(ragSelection);
+            }
+
+            // ساخت prompt شامل مقادیر ورودی، سبک توصیه، مساحت اتاق و اطلاعات اضافی
             String prompt = String.format(
-                    "User with access level '%s' requires recommendations that are %s. Conditions: Temperature: %d, Occupancy: %d, Power Usage: %dW, Peak Hours: %s. Please suggest the best HVAC mode and temperature.",
-                    accessLevel, recommendationStyle, temperature, occupancy, powerUsage, peakHoursStatus
+                    "User with access level '%s' requires recommendations that are %s. Conditions: Temperature: %d, Occupancy: %d, Power Usage: %dW, Room Area: %.2f m², Peak Hours: %s. %s Please suggest the best HVAC mode and temperature.",
+                    accessLevel, recommendationStyle, temperature, occupancy, powerUsage, roomArea, peakHoursStatus, additionalData
             );
 
-            // Setup HTTP request
+            // تنظیم درخواست HTTP به API چت
             String urlString = "http://localhost:11434/api/chat";
             URL url = new URL(urlString);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -205,7 +229,6 @@ class EnergyOptimizationGUI {
                     ObjectMapper objectMapper = new ObjectMapper();
                     StringBuilder response = new StringBuilder();
                     String line;
-
                     while ((line = br.readLine()) != null) {
                         if (!line.trim().isEmpty()) {
                             try {
@@ -226,6 +249,39 @@ class EnergyOptimizationGUI {
             conn.disconnect();
         } catch (Exception ex) {
             resultArea.setText("Error: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * این متد از RAG برای دریافت اطلاعات اضافی از یک نقطه انتهایی معین استفاده می‌کند.
+     * نقطه انتهایی URL بر اساس انتخاب کاربر تعیین می‌شود.
+     */
+    private String fetchRAGData(String selection) {
+        String endpoint = "";
+        if ("Energy Usage Trends".equalsIgnoreCase(selection)) {
+            endpoint = "http://localhost:11434/api/energy-usage-trends";
+        } else if ("Weather Forecasts".equalsIgnoreCase(selection)) {
+            endpoint = "http://localhost:11434/api/weather-forecasts";
+        }
+        try {
+            URL url = new URL(endpoint);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            if (conn.getResponseCode() == 200) {
+                BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"));
+                StringBuilder result = new StringBuilder();
+                String line;
+                while ((line = in.readLine()) != null) {
+                    result.append(line);
+                }
+                in.close();
+                return "Additional Data: " + result.toString();
+            } else {
+                return "";
+            }
+        } catch (Exception ex) {
+            return "";
         }
     }
 }
